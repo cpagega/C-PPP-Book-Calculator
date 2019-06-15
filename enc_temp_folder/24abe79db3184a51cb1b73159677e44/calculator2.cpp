@@ -4,13 +4,6 @@
 // "Software - Principles and Practice using C++" by Bjarne Stroustrup
 //
 
-/*
-BUGS:
-string input without variable keyword generates get: variable error message (correct response) and returns a large double
-ignores multiple plus/minus operators.
-multiple mulitply/divide operators throw a get: variable error and return large double
-*/
-
 
 
 #include "lib.h"
@@ -198,27 +191,6 @@ Token Token_stream::get()
 Token_stream ts;        // provides get() and putback() 
 
 //------------------------------------------------------------------------------
-
-double root(double n, int power)
-/*
-input: any number n, any positive int power
-returns: only real roots of n
-*/
-{
-	if (n < 0 && (power % 2) == 0) error("No real root");
-	if (power < 0) error("Only positive powers allowed");
-	double x = 1.0;
-	float epsilon = .0001;
-	double ans = 0.0;
-	while (fabs(pow(ans, power) - n) > epsilon)
-	{
-		ans = x - (pow(x, power) - n) / (power * pow(x, power - 1));
-		x = ans;
-	}
-	return ans;
-}
-//------------------------------------------------------------------------------
-
 
 double expression();    // declaration so that primary() can call expression()
 
@@ -432,9 +404,8 @@ int main()
 	cout << greeting();
 	try{
 		// predefine names:
-		define_name("pi", 3.1415926535);   
-		define_name("e", 2.7192818284);		
-		define_name("k", 1.38064852e-23);   // Boltzmann
+		define_name("pi", 3.1415926535);
+		define_name("e", 2.7192818284);
 		calculate();
 		return 0;
 	}
