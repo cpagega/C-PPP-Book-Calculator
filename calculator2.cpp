@@ -5,25 +5,36 @@
 //
 
 /*
-BUGS:
-string input without variable keyword generates get: variable error message (correct response) and returns a large double
-ignores multiple plus/minus operators.
-multiple mulitply/divide operators throw a get: variable error and return large double
+KNOWN BUG: 
+1. After displaying help or a bad input, prompt will not return to >,
+work around is to enter an expression. It may not return the result but the prompt returns
+and the calculator resumes normal operation for the next expression.
+
+2. I included the capability to redefine variables but this also allows 
+the predefined constants to be redefined.
 */
 
-
+/*
+TODO:
+Make the constants a little more constant
+*/
 
 #include "lib.h"
-#include <cstdint>
+
 //------------------------------------------------------------------------------
 const char number = '8';     // t.kind==number means that t is a number Token
-const char quit = 'x';       // t.kind==exit means that t is an exit Token
+const char quit = '`';       // t.kind==quit means that t is a quit Token
 const char print = ';';      // t.kind==print means that t is a print Token
 const string prompt = "> ";  // printed to console as an input prompt
 const string result = "= ";  // used to indicate that what follows is a result
-const char name = 'a';
-const char let = 'L';
-const string declkey = "let";
+const char name = 'a';       // t.kind==a for variable Token
+const char let = 'L';        // returned as a Token when declkey "let" matched in Token stream
+const string declkey = "let"; // keyword for variable definition
+const char root = 'R';		 // operator definition and switch case for root function.
+const char power = '^';      // operator definition and switch case for power function.
+const string exitkey = "exit"; 
+const char help = '?';
+
 
 //------------------------------------------------------------------------------
 
@@ -44,7 +55,7 @@ double get_value(string s)
 {
 	for (const Variable& v : var_table)
 		if (v.name == s) return v.value;
-	error("get: undefined variable ", s);
+	// error("get: undefined variable ", s);  unneeded with current implementation
 }
 
 //------------------------------------------------------------------------------
@@ -57,7 +68,7 @@ void set_value(string s, double d)
 			v.value = d;
 			return;
 		}
-	error("set: undefined variable ", s);
+	// error("set: undefined variable ", s); unneeded with current implementation
 }
 
 //------------------------------------------------------------------------------
@@ -75,7 +86,6 @@ bool is_declared(string var)
 double define_name(string var, double val)
 // add (var,val) to var_table
 {
-	if (is_declared(var)) error(var, " declared twice");
 	var_table.push_back(Variable(var, val));
 	return val;
 }
@@ -156,7 +166,9 @@ Token Token_stream::get()
 
 	switch (ch) {
 	case print:    
-	case quit:
+	case root:
+	case power:
+	case help:
 	case '(':
 	case ')': 
 	case '+': 
@@ -185,6 +197,7 @@ Token Token_stream::get()
 			while (cin.get(ch) && (isalpha(ch) || isdigit(ch))) s += ch;
 			cin.putback(ch);
 			if (s == declkey) return Token(let);
+			if (s == exitkey) return Token(quit);
 			return Token{ name,s };
 		}
 		
@@ -199,7 +212,7 @@ Token_stream ts;        // provides get() and putback()
 
 //------------------------------------------------------------------------------
 
-double root(double n, int power)
+double nroot(double n, int power)
 /*
 input: any number n, any positive int power
 returns: only real roots of n
@@ -208,7 +221,7 @@ returns: only real roots of n
 	if (n < 0 && (power % 2) == 0) error("No real root");
 	if (power < 0) error("Only positive powers allowed");
 	double x = 1.0;
-	float epsilon = .0001;
+	double epsilon = .0001;
 	double ans = 0.0;
 	while (fabs(pow(ans, power) - n) > epsilon)
 	{
@@ -238,7 +251,11 @@ double declaration()
 	if (t2.kind != '=')error("= missing in declaration of ", var_name);
 
 	double d = expression();
-	define_name(var_name, d);
+	if (is_declared(var_name)) {
+		set_value(var_name, d);
+	}
+	else
+		define_name(var_name, d);
 	return d;
 }
 
@@ -280,15 +297,14 @@ double primary()
 	case '+':
 		return primary();
 	default:
-		try {
+	{		
+		if (is_declared(t.name)) {
 			double d = get_value(t.name);   // get value of variable t.name
 			return d;
 		}
-		catch (exception & e){
-			cerr << e.what() << '\n';
+		else
+			error("primary expected");
 	}
-		
-		//error("primary expected");
 	}
 }
 
@@ -302,7 +318,7 @@ double factorial()
 		switch (t.kind) {
 		case '!':
 		{
-			uint64_t ans = 1;
+			double ans = 1;
 			if (left == 0) {
 				left = 1;
 				t = ts.get();
@@ -324,21 +340,47 @@ double factorial()
 }
 
 
+//--------------------------------------------------------------
+double exponential()
+{
+	double left = factorial();
+	Token t = ts.get();
+
+	while (true) {
+		switch (t.kind) {
+		case root:
+			left = nroot(left, factorial());
+			t = ts.get();
+			break;
+		case power:
+			left = pow(left, factorial());
+			t = ts.get();
+			break;
+		default:
+			ts.putback(t);
+			return left;
+		}
+	}
+}
+//--------------------------------------------------------------
+
+
+
 // deal with *, /, and %
 double term()
 {
-	double left = factorial();
+	double left = exponential();
 	Token t = ts.get();        // get the next token from token stream
 
 	while (true) {
 		switch (t.kind) {
 		case '*':
-			left *= factorial();
+			left *= exponential();
 			t = ts.get();
 			break;
 		case '/':
 		{
-			double d = factorial();
+			double d = exponential();
 			if (d == 0) error("divide by zero");
 			left /= d;
 			t = ts.get();
@@ -346,7 +388,7 @@ double term()
 		}
 		case '%':
 		{
-			double d = factorial();
+			double d = exponential();
 			if (d == 0) error("divide by zero");
 			left = fmod(left, d);
 			t = ts.get();
@@ -388,13 +430,7 @@ double expression()
 
 string greeting()
 {
-	string greeting = "Welcome to calculator version 2.0\n \
-Please enter expressions using floating - point numbers\n \
-This version supports operators + , -, *, / , x!(limited to 21!), % (remainder), and { () }\n \
-Type ';' followed by return to calculate your entered expression\n \
-Define variables using the 'let' keyword. (let var = 1)\n \
-Type 'x' to exit (Note: Do not define a variable starting with 'x')\n";   
-	return greeting;
+	return "Welcome to calculator version 2.0 -- type '?' for more info.\n";
 }
 
 //------------------------------------------------------------------------
@@ -404,7 +440,7 @@ void clean_up_mess()
 }
 
 //------------------------------------------------------------------------
-
+void printhelp(); 
 void calculate()		// expression evaluation loop
 {
 	while (cin) 
@@ -413,6 +449,10 @@ void calculate()		// expression evaluation loop
 			Token t = ts.get();
 			while (t.kind == print) t = ts.get();    // first discard all "prints"
 			if (t.kind == quit) return;
+			if (t.kind == help){
+				printhelp();
+				t = ts.get();
+			}
 			ts.putback(t);
 			cout << result << statement() << '\n';
 		}
@@ -449,3 +489,22 @@ int main()
 }
 
 //------------------------------------------------------------------------------
+
+void printhelp()
+{
+	cout << "Type in an expression of any length and terminate with ';'\n";
+	cout << "Example: 5! * (1+5);\n\n";
+	cout << "Supported Operators: +,-,*,-,/, ^, n!, R, (), {}\n";
+	cout << "nth roots use the R operator.\n";
+	cout << "Example:  8R3; would be equivilent to the cube root of 8\n\n";
+	cout << "Variables can be defined using the 'let' keyword\n";
+	cout << "Example: let v1 = 5+5;\n\n";
+	cout << "Stored constants:\n";
+	cout << "pi = " << get_value("pi") << " PI\n";
+	cout << "e = " << get_value("e") << " Euler\n";
+	cout << "k = " << get_value("k") << " Boltzmann\n\n";
+	cout << "Type 'exit' to exit\n";
+	return;
+
+
+}
