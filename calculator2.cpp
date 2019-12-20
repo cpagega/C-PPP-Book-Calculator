@@ -11,7 +11,7 @@ work around is to enter an expression. It may not return the result but the prom
 and the calculator resumes normal operation for the next expression.
 
 2. I included the capability to redefine variables but this also allows 
-the predefined constants to be redefined. --
+the predefined constants to be redefined. 
 */
 
 /*
