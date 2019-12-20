@@ -6,8 +6,8 @@
 
 /*
 KNOWN BUG: 
-1. After displaying help or a bad input, prompt will not return to >,
-work around is to enter an expression. It may not return the result but the prompt returns
+1. After displaying help or a bad input, prompt will not return to >.
+Work around is to enter an expression. It may not return the result but the prompt returns
 and the calculator resumes normal operation for the next expression.
 
 2. I included the capability to redefine variables but this also allows 
